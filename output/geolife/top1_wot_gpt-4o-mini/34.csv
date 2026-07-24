@@ -1,0 +1,3 @@
+user_id,ground_truth,prediction,reason
+34,800,801,"The user has a strong pattern of visiting place ID 801, especially on Mondays and Sundays, as seen in both the history and context. Recent stays in the context also indicate a visit to place ID 801 on Monday, suggesting a likelihood of returning there."
+34,801,800,"The user has a strong pattern of visiting place ID 800 on Mondays, including a recent stay of 60 minutes at this location on Monday at 11:46 AM. This suggests a likelihood of returning to this place."
