@@ -5,7 +5,8 @@ import ast
 import logging
 from datetime import datetime
 import pandas as pd
-from openai import OpenAI
+# from openai import OpenAI
+from openrouter import OpenRouter    
 
 # from dotenv import load_dotenv, find_dotenv
 # _ = load_dotenv(find_dotenv())
@@ -16,17 +17,17 @@ from openai import OpenAI
 
 
 # Helper function
-def get_chat_completion(client, prompt, model="gpt-3.5-turbo-0613", json_mode=False, max_tokens=1200):
+def get_chat_completion(client, prompt, model="openai/gpt-4o-mini", json_mode=True, max_tokens=1200):
     """
     args:
         client: the openai client object (new in 1.x version)
         prompt: the prompt to be completed
         model: specify the model to use
         json_mode: whether return the response in json format (new in 1.x version)
-    """
+    """     
     messages = [{"role": "user", "content": prompt}]
     if json_mode:
-        completion = client.chat.completions.create(
+        completion = client.chat.send(
             model=model,
             response_format={"type": "json_object"},
             messages=messages,
@@ -34,7 +35,7 @@ def get_chat_completion(client, prompt, model="gpt-3.5-turbo-0613", json_mode=Fa
             max_tokens=max_tokens  # the maximum number of tokens to generate
         )
     else:
-        completion = client.chat.completions.create(
+        completion = client.chat.send(
             model=model,
             messages=messages,
             temperature=0,
@@ -227,7 +228,7 @@ def single_query_top1(client, historical_data, X):
     return completion
 
 
-def single_query_top10(client, historical_data, X):
+def single_query_top_k(client, historical_data, X, top_k):
     """
     Make a single query.
     param: 
@@ -246,7 +247,7 @@ def single_query_top10(client, historical_data, X):
     Then you need to do next location prediction on <target_stay> which is the prediction target with unknown place ID denoted as <next_place_id> and 
     unknown duration denoted as None, while temporal information is provided.      
     
-    Please infer what the <next_place_id> might be (please output the 10 most likely places which are ranked in descending order in terms of probability), considering the following aspects:
+    Please infer what the <next_place_id> might be (please output the {top_k} most likely places which are ranked in descending order in terms of probability), considering the following aspects:
     1. the activity pattern of this user that you leared from <history>, e.g., repeated visits to certain places during certain times;
     2. the context stays in <context>, which provide more recent activities of this user; 
     3. the temporal information (i.e., start_time and day_of_week) of target stay, which is important because people's activity varies during different time (e.g., nighttime versus daytime)
@@ -294,9 +295,9 @@ def single_query_top1_wot(client, historical_data, X):
     return completion
 
 
-def single_query_top10_wot(client, historical_data, X):
+def single_query_top_k_wot(client, historical_data, X, top_k):
     """
-    Make a single query of 10 most likely places, without time information
+    Make a single query of top_k most likely places, without time information
     param: 
     X: one single sample containing context_stay and target_stay
     """
@@ -310,7 +311,7 @@ def single_query_top10_wot(client, historical_data, X):
     duration: an integer indicating the duration (in minute) of each stay. 
     place_id: an integer representing the unique place ID, which indicates where the stay is.
 
-    Please infer what the <next_place_id> might be (please output the 10 most likely places which are ranked in descending order in terms of probability), considering the following aspects:
+    Please infer what the <next_place_id> might be (please output the {top_k} most likely places which are ranked in descending order in terms of probability), considering the following aspects:
     1. the activity pattern of this user that you leared from <history>, e.g., repeated visits to certain places during certain times;
     2. the context stays in <context>, which provide more recent activities of this user.
   
@@ -390,7 +391,7 @@ def single_query_top1_wot_fsq(client, historical_data, X):
     return completion
 
 
-def single_query_top10_fsq(client, historical_data, X):
+def single_query_top_k_fsq(client, historical_data, X, top_k):
     """
     Make a single query.
     param: 
@@ -409,7 +410,7 @@ def single_query_top10_fsq(client, historical_data, X):
     Then you need to do next location prediction on <target_stay> which is the prediction target with unknown place ID denoted as <next_place_id> and 
     unknown duration denoted as None, while temporal information is provided.      
     
-    Please infer what the <next_place_id> might be (please output the 10 most likely places which are ranked in descending order in terms of probability), considering the following aspects:
+    Please infer what the <next_place_id> might be (please output the {top_k} most likely places which are ranked in descending order in terms of probability), considering the following aspects:
     1. the activity pattern of this user that you leared from <history>, e.g., repeated visits to certain places during certain times.
     2. the context stays in <context>, which provide more recent activities of this user; 
     3. the temporal information (i.e., start_time and weekday) of target stay, which is important because people's activity varies during different time (e.g., nighttime versus daytime)
@@ -427,9 +428,9 @@ def single_query_top10_fsq(client, historical_data, X):
     return completion
 
 
-def single_query_top10_wot_fsq(client, historical_data, X):
+def single_query_top_k_wot_fsq(client, historical_data, X, top_k):
     """
-    Make a single query of 10 most likely places, without time information
+    Make a single query of top_k most likely places, without time information
     param: 
     X: one single sample containing context_stay and target_stay
     """
@@ -442,7 +443,7 @@ def single_query_top10_wot_fsq(client, historical_data, X):
     day_of_week: indicating the day of the week.
     place_id: an integer representing the unique place ID, which indicates where the stay is.
 
-    Please infer what the <next_place_id> might be (please output the 10 most likely places which are ranked in descending order in terms of probability), considering the following aspects:
+    Please infer what the <next_place_id> might be (please output the {top_k} most likely places which are ranked in descending order in terms of probability), considering the following aspects:
     1. the activity pattern of this user that you leared from <history>, e.g., repeated visits to certain places during certain times.
     2. the context stays in <context>, which provide more recent activities of this user.
   
@@ -499,32 +500,32 @@ def single_user_query(client, dataname, uid, historical_data, predict_X, predict
             if is_wt is True:
                 if top_k == 1:
                     completions = single_query_top1(client, historical_data, predict_X[i])
-                elif top_k == 10:
-                    completions = single_query_top10(client, historical_data, predict_X[i])
+                elif top_k > 1:
+                    completions = single_query_top_k(client, historical_data, predict_X[i])
                 else:
-                    raise ValueError(f"The top_k must be one of 1, 10. However, {top_k} was provided")
+                    raise ValueError(f"The top_k must be of 1 or above 1. However, {top_k} was provided")
             else:
                 if top_k == 1:
                     completions = single_query_top1_wot(client, historical_data, predict_X[i])
-                elif top_k == 10:
-                    completions = single_query_top10_wot(client, historical_data, predict_X[i])
+                elif top_k > 1:
+                    completions = single_query_top_k_wot(client, historical_data, predict_X[i])
                 else:
-                    raise ValueError(f"The top_k must be one of 1, 10. However, {top_k} was provided")
+                    raise ValueError(f"The top_k must be of 1 or above 1. However, {top_k} was provided")
         elif dataname == 'fsq':
             if is_wt is True:
                 if top_k == 1:
                     completions = single_query_top1_fsq(client, historical_data, predict_X[i])
-                elif top_k == 10:
-                    completions = single_query_top10_fsq(client, historical_data, predict_X[i])
+                elif top_k > 1:
+                    completions = single_query_top_k_fsq(client, historical_data, predict_X[i])
                 else:
-                    raise ValueError(f"The top_k must be one of 1, 10. However, {top_k} was provided")
+                    raise ValueError(f"The top_k must be of 1 or above 1. However, {top_k} was provided")
             else:
                 if top_k == 1:
                     completions = single_query_top1_wot_fsq(client, historical_data, predict_X[i])
-                elif top_k == 10:
-                    completions = single_query_top10_wot_fsq(client, historical_data, predict_X[i])
+                elif top_k > 1:
+                    completions = single_query_top_k_wot_fsq(client, historical_data, predict_X[i])
                 else:
-                    raise ValueError(f"The top_k must be one of 1, 10. However, {top_k} was provided")
+                    raise ValueError(f"The top_k must be of 1 or above 1. However, {top_k} was provided")
 
         response = completions.choices[0].message.content
 
@@ -587,21 +588,31 @@ def get_unqueried_user(dataname, output_dir='output/'):
     return remain_id
 
 
-def main():
-    client = OpenAI(
-        api_key=os.environ['OPENAI_API_KEY']
+def main(): 
+    # client = OpenAI(
+    #     api_key=os.environ['OPENAI_API_KEY']
+    # )
+    client = OpenRouter(
+        api_key=os.environ['OPENROUTER_API_KEY']
     )
 
-    # Parameters
+    # Parameters (part I)
     dataname = "geolife"  # specify the dataset, geolife or fsq.
+    top_k = 1  # the number of output places k
+    with_time = False  # whether incorporate temporal information for target stay    
+    
+    # Parameters (part II)        
     num_historical_stay = 40  # M
     num_context_stay = 5  # N
-    top_k = 10  # the number of output places k
-    with_time = False  # whether incorporate temporal information for target stay
     sleep_single_query = 0.1  # the sleep time between queries (after the recent updates, the reliability of the API is greatly improved, so we can reduce the sleep time)
     sleep_if_crash = 1  # the sleep time if the server crashes
-    output_dir = f"output/{dataname}/top10_wot"  # the output path
-    log_dir = f"logs/{dataname}/top10_wot"  # the log dir
+    
+    if with_time == True:
+        output_dir = f"output/{dataname}/top{top_k}"  # the output path
+        log_dir = f"logs/{dataname}/top{top_k}"  # the log dir
+    else:
+        output_dir = f"output/{dataname}/top{top_k}_wot"  # the output path
+        log_dir = f"logs/{dataname}/top{top_k}_wot"  # the log dir
 
     tv_data, test_file = get_dataset(dataname)
 
